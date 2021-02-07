@@ -2,10 +2,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+
 -----------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------
+
 -- |
 -- Module      :  Diagrams.TwoD.Path.IntersectionExtras
 -- Copyright   :  (c) 2018 Mike Zuser
@@ -16,26 +21,38 @@
 -- module was motivated by `explodeIntersections`. The rest of the module is
 -- either functions that where needed to build it or functions to help
 -- consume it.
------------------------------------------------------------------------------
 module Diagrams.TwoD.Path.IntersectionExtras
   ( -- * Intersection Parameters
-    intersectParams, intersectParams'
-  , intersectParamsP, intersectParamsP'
-  , intersectParamsT, intersectParamsT'
-  , intersectParamsTS, intersectParamsTS'
-    -- * Cutting Paths and Trails
-  , cutBy, cutBy'
-  , cutPBy, cutPBy'
-  , cutTBy, cutTBy'
-    -- * Rad Explosions
-  , explodeSegments
-  , explodeIntersections, explodeIntersections'
-  , explodeBoth, explodeBoth'
-    -- * Consuming Cut Paths
-  , OnSections(..)
-  ) where
-import Data.List
+    intersectParams,
+    intersectParams',
+    intersectParamsP,
+    intersectParamsP',
+    intersectParamsT,
+    intersectParamsT',
+    intersectParamsTS,
+    intersectParamsTS',
 
+    -- * Cutting Paths and Trails
+    cutBy,
+    cutBy',
+    cutPBy,
+    cutPBy',
+    cutTBy,
+    cutTBy',
+
+    -- * Rad Explosions
+    explodeSegments,
+    explodeIntersections,
+    explodeIntersections',
+    explodeBoth,
+    explodeBoth',
+
+    -- * Consuming Cut Paths
+    OnSections (..),
+  )
+where
+
+import Data.List
 import Diagrams.Prelude
 import Diagrams.TwoD.Segment
 
@@ -50,13 +67,20 @@ defEps = 1e-8
 -- | Find the intersect parameters for each component trail of two pathlike
 --   objects when the objects are intersected, returning a seperate list for
 --   each trail.
-intersectParams :: (InSpace V2 n t, SameSpace t s, ToPath t, ToPath s, OrderedField n) =>
-  t -> s -> ([[n]], [[n]])
+intersectParams ::
+  (InSpace V2 n t, SameSpace t s, ToPath t, ToPath s, OrderedField n) =>
+  t ->
+  s ->
+  ([[n]], [[n]])
 intersectParams = intersectParams' defEps
 
 -- | `intersectParams` using the given tolerance.
-intersectParams' :: (InSpace V2 n t, SameSpace t s, ToPath t, ToPath s, OrderedField n) =>
-  n -> t -> s -> ([[n]], [[n]])
+intersectParams' ::
+  (InSpace V2 n t, SameSpace t s, ToPath t, ToPath s, OrderedField n) =>
+  n ->
+  t ->
+  s ->
+  ([[n]], [[n]])
 intersectParams' eps as bs = intersectParamsP' eps (toPath as) (toPath bs)
 
 -- | Find the intersect parameters for each component trail of two
@@ -74,39 +98,57 @@ intersectParamsP' eps as bs = (ps, qs)
     qs = map (concat . map snd) (transpose is)
 
 -- | Find the intersect parameters between two located trails.
-intersectParamsT :: OrderedField n =>
-  Located (Trail V2 n) -> Located (Trail V2 n) -> ([n], [n])
+intersectParamsT ::
+  OrderedField n =>
+  Located (Trail V2 n) ->
+  Located (Trail V2 n) ->
+  ([n], [n])
 intersectParamsT = intersectParamsT' defEps
 
 -- | `intersectParamsT` using the given tolerance.
-intersectParamsT' :: OrderedField n =>
-  n -> Located (Trail V2 n) -> Located (Trail V2 n) -> ([n], [n])
+intersectParamsT' ::
+  OrderedField n =>
+  n ->
+  Located (Trail V2 n) ->
+  Located (Trail V2 n) ->
+  ([n], [n])
 intersectParamsT' eps as bs = (reparam ps, reparam qs)
   where
     (ps, qs) = intersectParamsTS' eps as bs
-    reparam segs = concat $ zipWith f [(0::Int)..] segs
-      where f segNo = map $ \p -> (fromIntegral segNo + p) / genericLength segs
+    reparam segs = concat $ zipWith f [(0 :: Int) ..] segs
+      where
+        f segNo = map $ \p -> (fromIntegral segNo + p) / genericLength segs
 
 -- | Find the intersect parameters for each component segment of two
 --   located trails when the trails are intersected, returning a
 --   list for each trail containing a list of intersections for
 --   each segemnt of that trail.
-intersectParamsTS :: OrderedField n =>
-  Located (Trail V2 n) -> Located (Trail V2 n) -> ([[n]], [[n]])
+intersectParamsTS ::
+  OrderedField n =>
+  Located (Trail V2 n) ->
+  Located (Trail V2 n) ->
+  ([[n]], [[n]])
 intersectParamsTS = intersectParamsTS' defEps
 
+deriving instance Eq (n v) => Eq (FixedSegment n v)
+
 -- | `intersectParamsTS` using the given tolerance.
-intersectParamsTS' :: OrderedField n =>
-  n -> Located (Trail V2 n) -> Located (Trail V2 n) -> ([[n]], [[n]])
+intersectParamsTS' ::
+  OrderedField n =>
+  n ->
+  Located (Trail V2 n) ->
+  Located (Trail V2 n) ->
+  ([[n]], [[n]])
 intersectParamsTS' eps as bs = (ps, qs)
   where
-    (as', bs') = (as, bs) & both %~ (zip [0..] . fixTrail)
+    (as', bs') = (as, bs) & both %~ (zip [0 ..] . fixTrail)
     is = map (flip map bs' . isect) as'
     isect (i, a) (j, b)
-      | a == b    = []
-      | otherwise = filter (not . ends)
-                  . map (\(p, q, _) -> (p, q))
-                  $ segmentSegment eps a b
+      | a == b = []
+      | otherwise =
+        filter (not . ends)
+          . map (\(p, q, _) -> (p, q))
+          $ segmentSegment eps a b
       where
         ends (p, q) = adjacent && min p q `near` 0 && max p q `near` 1
         adjacent = as == bs && (abs (i - j) == 1 || min i j == 0 && max i j == length as' - 1)
@@ -134,13 +176,20 @@ intersectParamsTS' eps as bs = (ps, qs)
 --   >     colorLines = map (map lc)
 --   >       [ [ red, orange]
 --   >       , [blue, purple] ]
-cutBy :: (OrderedField n, Real n, InSpace V2 n t, SameSpace t s, ToPath t, ToPath s) =>
-  t -> s -> [[Located (Trail V2 n)]]
+cutBy ::
+  (OrderedField n, Real n, InSpace V2 n t, SameSpace t s, ToPath t, ToPath s) =>
+  t ->
+  s ->
+  [[Located (Trail V2 n)]]
 cutBy = cutBy' defEps
 
 -- | `cutBy` using the given tolerance for calculating intersections.
-cutBy' :: (OrderedField n, Real n, InSpace V2 n t, SameSpace t s, ToPath t, ToPath s) =>
-  n -> t -> s -> [[Located (Trail V2 n)]]
+cutBy' ::
+  (OrderedField n, Real n, InSpace V2 n t, SameSpace t s, ToPath t, ToPath s) =>
+  n ->
+  t ->
+  s ->
+  [[Located (Trail V2 n)]]
 cutBy' eps a b = cutPBy' eps (toPath a) (toPath b)
 
 -- | Seperate a path into sections at every point it intersects a second path,
@@ -159,20 +208,20 @@ cutTBy = cutTBy' defEps
 -- | `cutTBy` using the given tolerance for calculating intersections.
 cutTBy' :: (OrderedField n, Real n) => n -> Located (Trail V2 n) -> Path V2 n -> [Located (Trail V2 n)]
 cutTBy' eps t p
-  | null isects                                 = [t]
+  | null isects = [t]
   | null nearEnds && norm (start .-. end) < eps = gluedEnds
-  | otherwise                                   = subsections
+  | otherwise = subsections
   where
-    subsections = zipWith (section t) (0:isects) (isects++[1])
+    subsections = zipWith (section t) (0 : isects) (isects ++ [1])
     isects = sortAndAvoidEmpty notNearEnds
     sortAndAvoidEmpty = map head . groupBy (\a b -> abs (a - b) < eps) . sort
-    (notNearEnds, nearEnds) = partition (\p -> (eps < p) && (p < 1-eps)) rawIsects
+    (notNearEnds, nearEnds) = partition (\p -> (eps < p) && (p < 1 - eps)) rawIsects
     rawIsects = concatMap (fst . intersectParamsT' eps t) (pathTrails p)
-
     start = head subsections `atParam` 0
-    end   = last subsections `atParam` 1
-    gluedEnds = unfixTrail (fixTrail (last subsections) ++ fixTrail (head subsections))
-              : init (tail subsections)
+    end = last subsections `atParam` 1
+    gluedEnds =
+      unfixTrail (fixTrail (last subsections) ++ fixTrail (head subsections))
+        : init (tail subsections)
 
 -----------------------------------------------------------------------------
 -- Rad Explosions -----------------------------------------------------------
@@ -206,7 +255,7 @@ explodeSegments = explodePath
 --   >     colorLines = map (map lc)
 --   >       [ [ gray,     red,     orange, yellow,     green,     blue,       indigo,     violet]
 --   >       , [black, crimson, darkorange,   gold, darkgreen, darkblue, midnightblue, darkviolet] ]
-explodeIntersections :: (OrderedField n, Real n)  => Path V2 n -> [[Located (Trail V2 n)]]
+explodeIntersections :: (OrderedField n, Real n) => Path V2 n -> [[Located (Trail V2 n)]]
 explodeIntersections = explodeIntersections' defEps
 
 -- | `explodeIntersections` using the given tolerance for calculating intersections.
@@ -245,42 +294,62 @@ class OnSections ps fs b n | ps b -> fs n, fs -> b n where
 -- Need to list out the instances rather than using overlaping instances
 -- with ToPath in order to use the fundep (ps b -> fs).
 
-instance (TypeableFloat n, OnSections ps fs b n) =>
-  OnSections [ps] [fs] b n where
+instance
+  (TypeableFloat n, OnSections ps fs b n) =>
+  OnSections [ps] [fs] b n
+  where
   onSections ps fs = mconcat $ zipWith onSections ps fs
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Path V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Path V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Located (Trail V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Located (Trail V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Located (Trail' l V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Located (Trail' l V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Located [Segment Closed V2 n]) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Located [Segment Closed V2 n]) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Located (Segment Closed V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Located (Segment Closed V2 n)) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Trail V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Trail V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (Trail' l V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (Trail' l V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (FixedSegment V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (FixedSegment V2 n) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs $ stroke ps
 
-instance (TypeableFloat n, Renderable (Path V2 n) b) =>
-  OnSections (QDiagram b V2 n Any) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n where
+instance
+  (TypeableFloat n, Renderable (Path V2 n) b) =>
+  OnSections (QDiagram b V2 n Any) (QDiagram b V2 n Any -> QDiagram b V2 n Any) b n
+  where
   onSections ps fs = fs ps
